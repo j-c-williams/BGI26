@@ -497,7 +497,7 @@ export default function Admin() {
                               }}
                               onClick={() => setActiveHole(h)}
                             >
-                              {dnfPlayers[p.id] ? 'DNF' : (s ?? '·')}
+                              {dnfPlayers[p.id] && s === null ? 'DNF' : (s ?? '·')}
                             </td>
                           )
                         })}
