@@ -4,6 +4,7 @@ import { getPlayers, addPlayer, getRounds, getLastRoundPlacements, submitRound }
 import { getHandicapForPlacement, fillDnfHoles } from '../lib/scoring'
 
 const HOLES = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+const STORAGE_KEY = 'bgi_inprogress'
 
 // ─── Step enum ───────────────────────────────────────────────────
 const STEP = { SETUP: 'setup', SCORING: 'scoring', REVIEW: 'review' }
@@ -26,13 +27,14 @@ export default function Admin() {
 
   // hole_scores[playerId][holeIndex 0-8] = strokes (number)
   const [holeScores, setHoleScores] = useState({})
-  const [dnfPlayers, setDnfPlayers] = useState({})  // player_id → true
-  const [activeHole, setActiveHole] = useState(1) // which hole we're currently focusing
+  const [dnfPlayers, setDnfPlayers] = useState({})  // player_id -> true
+  const [activeHole, setActiveHole] = useState(1)
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
 
+  // ─── Load players/rounds, then restore any in-progress round ──
   useEffect(() => {
     async function load() {
       const [players, rounds, lastData] = await Promise.all([
@@ -44,10 +46,42 @@ export default function Admin() {
         setLastPlacements(lastData.placements)
         setLastTotalPlayers(lastData.totalPlayers)
       }
-      setWeekNumber(rounds.length > 0 ? rounds[0].week_number + 1 : 1)
+
+      // Restore in-progress round if one was saved, otherwise set defaults
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY)
+        if (saved) {
+          const s = JSON.parse(saved)
+          setStep(s.step)
+          setWeekNumber(s.weekNumber)
+          setDate(s.date)
+          setParticipating(s.participating)
+          setHoleScores(s.holeScores)
+          setDnfPlayers(s.dnfPlayers)
+          setActiveHole(s.activeHole)
+        } else {
+          setWeekNumber(rounds.length > 0 ? rounds[0].week_number + 1 : 1)
+        }
+      } catch (e) {
+        // Corrupt save data — ignore and start fresh
+        localStorage.removeItem(STORAGE_KEY)
+        setWeekNumber(rounds.length > 0 ? rounds[0].week_number + 1 : 1)
+      }
     }
     load()
   }, [])
+
+  // ─── Persist scoring state to localStorage whenever it changes ─
+  useEffect(() => {
+    if (step !== STEP.SCORING) return
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        step, weekNumber, date, participating, holeScores, dnfPlayers, activeHole,
+      }))
+    } catch (e) {
+      // localStorage full or unavailable — fail silently
+    }
+  }, [step, weekNumber, date, participating, holeScores, dnfPlayers, activeHole])
 
   // ─── Derived ──────────────────────────────────────────────────
   const activePlayers = players.filter(p => participating[p.id])
@@ -67,15 +101,15 @@ export default function Admin() {
 
   function allNineComplete() {
     return activePlayers.every(p =>
+      dnfPlayers[p.id] ||
       HOLES.every((_, i) => (holeScores[p.id]?.[i] ?? null) !== null)
     )
   }
 
   function holesEnteredCount() {
     if (!activePlayers.length) return 0
-    // count holes where ALL active players have a score
     return HOLES.filter((_, i) =>
-      activePlayers.every(p => (holeScores[p.id]?.[i] ?? null) !== null)
+      activePlayers.every(p => dnfPlayers[p.id] || (holeScores[p.id]?.[i] ?? null) !== null)
     ).length
   }
 
@@ -102,6 +136,7 @@ export default function Admin() {
       return
     }
     setError(null)
+    localStorage.removeItem(STORAGE_KEY)
     setHoleScores({})
     setDnfPlayers({})
     setActiveHole(1)
@@ -111,14 +146,24 @@ export default function Admin() {
   function adjustScore(playerId, holeIdx, delta) {
     setHoleScores(prev => {
       const playerHoles = { ...(prev[playerId] || {}) }
-      const current = playerHoles[holeIdx] ?? 0
-      playerHoles[holeIdx] = Math.max(1, current + delta)
+      const current = playerHoles[holeIdx] ?? -1
+      playerHoles[holeIdx] = Math.max(0, current + delta)
       return { ...prev, [playerId]: playerHoles }
     })
   }
 
   function toggleDnf(playerId) {
-    setDnfPlayers(prev => ({ ...prev, [playerId]: !prev[playerId] }))
+    setDnfPlayers(prev => {
+      const nowDnf = !prev[playerId]
+      if (nowDnf) {
+        setHoleScores(prev => {
+          const next = { ...prev }
+          delete next[playerId]
+          return next
+        })
+      }
+      return { ...prev, [playerId]: nowDnf }
+    })
   }
 
   function setScore(playerId, holeIdx, val) {
@@ -129,7 +174,7 @@ export default function Admin() {
       if (val === '' || isNaN(n)) {
         delete playerHoles[holeIdx]
       } else {
-        playerHoles[holeIdx] = Math.max(1, n)
+        playerHoles[holeIdx] = Math.max(0, n)
       }
       return { ...prev, [playerId]: playerHoles }
     })
@@ -156,6 +201,7 @@ export default function Admin() {
         date,
         playerScores,
       })
+      localStorage.removeItem(STORAGE_KEY)
       setSuccess(true)
       setTimeout(() => navigate(`/week/${round.id}`), 1200)
     } catch (e) {
@@ -315,7 +361,7 @@ export default function Admin() {
         style={{ background: 'var(--teal-dark)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
         <div>
           <button
-            onClick={() => setStep(STEP.SETUP)}
+            onClick={() => { localStorage.removeItem(STORAGE_KEY); setStep(STEP.SETUP) }}
             className="text-xs tracking-widest"
             style={{ color: 'var(--cream-dark)' }}
           >
@@ -338,7 +384,7 @@ export default function Admin() {
         <div className="flex gap-1.5 overflow-x-auto pb-1">
           {HOLES.map(h => {
             const holeIdx = h - 1
-            const allDone = activePlayers.every(p => (holeScores[p.id]?.[holeIdx] ?? null) !== null)
+            const allDone = activePlayers.every(p => dnfPlayers[p.id] || (holeScores[p.id]?.[holeIdx] ?? null) !== null)
             const isActive = activeHole === h
             return (
               <button
@@ -373,11 +419,14 @@ export default function Admin() {
               <div
                 key={p.id}
                 className="rounded-xl overflow-hidden"
-                style={{ background: score !== null ? 'var(--scorecard)' : 'rgba(255,255,255,0.05)', border: `2px solid ${score !== null ? 'var(--teal)' : 'rgba(255,255,255,0.1)'}` }}
+                style={{
+                  background: dnfPlayers[p.id] ? 'rgba(127,29,29,0.15)' : score !== null ? 'var(--scorecard)' : 'rgba(255,255,255,0.05)',
+                  border: `2px solid ${dnfPlayers[p.id] ? '#7f1d1d' : score !== null ? 'var(--teal)' : 'rgba(255,255,255,0.1)'}`,
+                }}
               >
                 <div className="flex items-center justify-between px-4 py-3">
                   <div>
-                    <span className="font-semibold tracking-wide text-base" style={{ color: score !== null ? 'var(--ink)' : 'var(--cream)' }}>
+                    <span className="font-semibold tracking-wide text-base" style={{ color: dnfPlayers[p.id] ? '#fca5a5' : score !== null ? 'var(--ink)' : 'var(--cream)' }}>
                       {p.name}
                     </span>
                     <span className="text-xs font-mono ml-2" style={{ color: hcp < 0 ? '#16a34a' : '#888' }}>
@@ -477,9 +526,13 @@ export default function Admin() {
                     return (
                       <tr key={p.id} style={{
                         borderTop: '1px solid var(--cream-dark)',
-                        background: i % 2 === 0 ? 'var(--parchment)' : 'var(--cream)',
+                        background: dnfPlayers[p.id] ? 'rgba(127,29,29,0.08)' : i % 2 === 0 ? 'var(--parchment)' : 'var(--cream)',
                       }}>
-                        <td className="px-3 py-2 font-semibold sticky left-0" style={{ background: i % 2 === 0 ? 'var(--parchment)' : 'var(--cream)', color: 'var(--ink)', minWidth: 80 }}>
+                        <td className="px-3 py-2 font-semibold sticky left-0" style={{
+                          background: dnfPlayers[p.id] ? 'rgba(127,29,29,0.08)' : i % 2 === 0 ? 'var(--parchment)' : 'var(--cream)',
+                          color: dnfPlayers[p.id] ? '#fca5a5' : 'var(--ink)',
+                          minWidth: 80,
+                        }}>
                           {p.name}
                         </td>
                         {HOLES.map((h, hi) => {
@@ -490,19 +543,19 @@ export default function Admin() {
                               key={h}
                               className="px-1 py-2 text-center font-mono cursor-pointer"
                               style={{
-                                color: s !== null ? 'var(--ink)' : 'var(--cream-dark)',
+                                color: dnfPlayers[p.id] ? '#fca5a5' : s !== null ? 'var(--ink)' : 'var(--cream-dark)',
                                 background: isCur ? 'rgba(201,75,26,0.12)' : 'transparent',
                                 fontWeight: isCur ? 700 : 400,
                                 minWidth: 32,
                               }}
                               onClick={() => setActiveHole(h)}
                             >
-                              {dnfPlayers[p.id] ? 'DNF' : (s ?? '·')}
+                              {dnfPlayers[p.id] && s === null ? '5' : (s ?? '·')}
                             </td>
                           )
                         })}
-                        <td className="px-3 py-2 text-right font-mono font-semibold" style={{ color: raw > 0 ? 'var(--teal)' : 'var(--cream-dark)' }}>
-                          {raw > 0 ? raw : '—'}
+                        <td className="px-3 py-2 text-right font-mono font-semibold" style={{ color: dnfPlayers[p.id] ? '#fca5a5' : raw > 0 ? 'var(--teal)' : 'var(--cream-dark)' }}>
+                          {dnfPlayers[p.id] ? 'DNF' : raw > 0 ? raw : '—'}
                         </td>
                       </tr>
                     )
