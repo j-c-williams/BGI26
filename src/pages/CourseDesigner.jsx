@@ -419,11 +419,22 @@ export default function CourseDesigner() {
                         )
                       })}
                     </div>
-                    <button onClick={() => loadCourse(c)}
-                      className="w-full py-2 rounded-lg font-display tracking-widest text-base"
-                      style={{ background: 'var(--teal)', color: 'var(--cream)' }}>
-                      LOAD & EDIT →
-                    </button>
+                    <div className="flex gap-2">
+                      <button onClick={() => loadCourse(c)}
+                        className="flex-1 py-2 rounded-lg font-display tracking-widest text-base"
+                        style={{ background: 'var(--teal)', color: 'var(--cream)' }}>
+                        LOAD & EDIT →
+                      </button>
+                      <button onClick={async () => {
+                        if (!confirm(`Delete "${c.name}"?`)) return
+                        await supabase.from('courses').delete().eq('id', c.id)
+                        setSavedCourses(prev => prev.filter(x => x.id !== c.id))
+                      }}
+                        className="px-4 py-2 rounded-lg font-display tracking-widest text-base"
+                        style={{ background: 'rgba(127,29,29,0.5)', color: '#fca5a5' }}>
+                        🗑
+                      </button>
+                    </div>
                   </div>
                 </div>
               )
