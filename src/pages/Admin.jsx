@@ -67,6 +67,7 @@ export default function Admin() {
 
   function allNineComplete() {
     return activePlayers.every(p =>
+      dnfPlayers[p.id] ||
       HOLES.every((_, i) => (holeScores[p.id]?.[i] ?? null) !== null)
     )
   }
@@ -118,7 +119,17 @@ export default function Admin() {
   }
 
   function toggleDnf(playerId) {
-    setDnfPlayers(prev => ({ ...prev, [playerId]: !prev[playerId] }))
+    setDnfPlayers(prev => {
+      const nowDnf = !prev[playerId]
+      if (nowDnf) {
+        setHoleScores(prev => {
+          const next = { ...prev }
+          delete next[playerId]
+          return next
+        })
+      }
+      return { ...prev, [playerId]: nowDnf }
+    })
   }
 
   function setScore(playerId, holeIdx, val) {
