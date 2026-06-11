@@ -1,0 +1,61 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+@import "tailwindcss";
+
+:root {
+  /* Logo palette */
+  --cream:       #EDE8DC;
+  --cream-dark:  #D9D2C0;
+  --parchment:   #F5F0E6;
+  --teal:        #1D5C54;
+  --teal-light:  #2A7A6F;
+  --teal-dark:   #133D37;
+  --rust:        #C94B1A;
+  --amber:       #E07B2A;
+  --gold:        #D4A832;
+  --sunset-top:  #C94B1A;
+  --sunset-mid:  #E07B2A;
+  --sunset-low:  #8B9E3A;
+  --ink:         #1A1A12;
+  --ink-light:   #3D3D2E;
+
+  /* Gradients */
+  --sunset: linear-gradient(180deg, #C94B1A 0%, #E07B2A 35%, #D4A832 60%, #8B9E3A 100%);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background-color: var(--teal-dark);
+  color: var(--cream);
+  font-family: 'Barlow Condensed', sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-display  { font-family: 'Bebas Neue', sans-serif; }
+.font-mono     { font-family: 'JetBrains Mono', monospace; }
+.font-body     { font-family: 'Barlow Condensed', sans-serif; }
+
+/* Rope border effect */
+.rope-border {
+  border: 3px solid var(--rust);
+  border-radius: 50%;
+  padding: 3px;
+  background: repeating-conic-gradient(var(--rust) 0deg 10deg, var(--amber) 10deg 20deg);
+}
+
+/* Scorecard paper texture */
+.scorecard {
+  background: var(--parchment);
+  color: var(--ink);
+}
+
+/* Sunset stripe */
+.sunset-stripe {
+  background: var(--sunset);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--teal-dark); }
+::-webkit-scrollbar-thumb { background: var(--teal); border-radius: 2px; }
