@@ -111,8 +111,8 @@ export default function Admin() {
   function adjustScore(playerId, holeIdx, delta) {
     setHoleScores(prev => {
       const playerHoles = { ...(prev[playerId] || {}) }
-      const current = playerHoles[holeIdx] ?? 0
-      playerHoles[holeIdx] = Math.max(1, current + delta)
+      const current = playerHoles[holeIdx] ?? -1
+      playerHoles[holeIdx] = Math.max(0, current + delta)
       return { ...prev, [playerId]: playerHoles }
     })
   }
