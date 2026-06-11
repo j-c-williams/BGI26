@@ -67,7 +67,6 @@ export default function Admin() {
 
   function allNineComplete() {
     return activePlayers.every(p =>
-      dnfPlayers[p.id] ||
       HOLES.every((_, i) => (holeScores[p.id]?.[i] ?? null) !== null)
     )
   }
@@ -112,24 +111,14 @@ export default function Admin() {
   function adjustScore(playerId, holeIdx, delta) {
     setHoleScores(prev => {
       const playerHoles = { ...(prev[playerId] || {}) }
-      const current = playerHoles[holeIdx] ?? -1
-      playerHoles[holeIdx] = Math.max(0, current + delta)
+      const current = playerHoles[holeIdx] ?? 0
+      playerHoles[holeIdx] = Math.max(1, current + delta)
       return { ...prev, [playerId]: playerHoles }
     })
   }
 
   function toggleDnf(playerId) {
-    setDnfPlayers(prev => {
-      const nowDnf = !prev[playerId]
-      if (nowDnf) {
-        setHoleScores(prev => {
-          const next = { ...prev }
-          delete next[playerId]
-          return next
-        })
-      }
-      return { ...prev, [playerId]: nowDnf }
-    })
+    setDnfPlayers(prev => ({ ...prev, [playerId]: !prev[playerId] }))
   }
 
   function setScore(playerId, holeIdx, val) {
@@ -508,7 +497,7 @@ export default function Admin() {
                               }}
                               onClick={() => setActiveHole(h)}
                             >
-                              {dnfPlayers[p.id] && s === null ? 'DNF' : (s ?? '·')}
+                              {dnfPlayers[p.id] ? 'DNF' : (s ?? '·')}
                             </td>
                           )
                         })}
