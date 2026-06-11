@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 
 const DEFAULT_CENTER = { lat: 40.12417, lng: -111.5813977 }
-const DEFAULT_ZOOM   = 20
+const DEFAULT_ZOOM   = 17
 const MAPS_KEY       = import.meta.env.VITE_GOOGLE_MAPS_KEY
 
 const HOLE_COLORS = [
