@@ -129,24 +129,12 @@ export function computeStandings(allScores, players, allRounds = []) {
     if (s.dnf)             totals[s.player_id].dnfRounds += 1
   })
 
-  // Auto-add missed-week penalty for any player who skipped a round
-  // Only applies to rounds that occurred after the player's first appearance
-  const playerFirstRound = {}  // player_id → earliest week_number they played
-  allScores.forEach(s => {
-    const wn = s.rounds?.week_number
-    if (!wn) return
-    if (!playerFirstRound[s.player_id] || wn < playerFirstRound[s.player_id]) {
-      playerFirstRound[s.player_id] = wn
-    }
-  })
-
+  // Auto-add missed-week penalty for every round a player didn't participate in.
+  // No "joined date" cutoff — if you weren't there, you get the DNF penalty.
   allRounds.forEach(r => {
     const participants = roundParticipants[r.id] || new Set()
     players.forEach(p => {
       if (participants.has(p.id)) return  // they played, no penalty needed
-      const firstWeek = playerFirstRound[p.id]
-      if (!firstWeek || r.week_number <= firstWeek) return  // before they joined
-      // They missed this round after joining — add DNF penalty
       if (!totals[p.id]) return
       totals[p.id].totalAdjusted += dnfPenalty
       totals[p.id].totalRaw      += dnfPenalty
