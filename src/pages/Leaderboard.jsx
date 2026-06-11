@@ -49,12 +49,6 @@ export default function Leaderboard() {
           >
             INVITATIONAL
           </div>
-          <div
-            className="inline-block mt-2 px-4 py-0.5 text-sm font-semibold tracking-widest uppercase"
-            style={{ background: 'var(--rust)', color: 'var(--cream)', borderRadius: 2 }}
-          >
-            Summer Chill · 2026
-          </div>
         </div>
       </div>
 
