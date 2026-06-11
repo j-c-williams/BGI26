@@ -263,7 +263,7 @@ export default function CourseDesigner() {
               <div className="absolute top-3 inset-x-0 flex justify-center pointer-events-none z-10">
                 <div className="px-4 py-2 rounded-full text-sm font-semibold shadow-xl"
                   style={{ background: placeMode==='tee' ? 'var(--rust)' : 'var(--teal)', color: 'var(--cream)' }}>
-                  Tap map → place {placeMode==='tee' ? '⛳ tee' : '🪣 bucket'} for hole {activeHole}
+                  Tap map → place {placeMode==='tee' ? '🏌🏼‍♂️ tee' : '🪣 bucket'} for hole {activeHole}
                 </div>
               </div>
             )}
@@ -316,7 +316,7 @@ export default function CourseDesigner() {
 
               {holes.length === 0 && (
                 <p className="text-sm py-1" style={{ color: 'var(--cream-dark)' }}>
-                  Add a hole, then tap the map to drop a tee ⛳ and bucket 🪣.
+                  Add a hole, then tap the map to drop a tee 🏌🏼‍♂️ and bucket 🪣.
                 </p>
               )}
 
