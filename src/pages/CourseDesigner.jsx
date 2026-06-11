@@ -332,7 +332,7 @@ export default function CourseDesigner() {
                           style={{ background: color, color: 'white' }}>{h.num}</div>
                         <div className="flex-1 flex gap-3 text-xs">
                           <span style={{ color: h.tee ? '#4ade80' : 'var(--cream-dark)' }}>
-                            {h.tee ? '⛳✓' : '⛳ —'}
+                            {h.tee ? '🏌🏼‍♂️✓' : '🏌🏼‍♂️ —'}
                           </span>
                           <span style={{ color: h.bucket ? '#4ade80' : 'var(--cream-dark)' }}>
                             {h.bucket ? '🪣✓' : '🪣 —'}
@@ -341,7 +341,7 @@ export default function CourseDesigner() {
                         <div className="flex gap-1">
                           <button onClick={() => activatePlace(h.num, 'tee')}
                             className="px-2 py-1 rounded text-xs font-semibold"
-                            style={{ background: 'rgba(201,75,26,0.35)', color: 'var(--cream)' }}>⛳</button>
+                            style={{ background: 'rgba(201,75,26,0.35)', color: 'var(--cream)' }}>🏌🏼‍♂️</button>
                           <button onClick={() => activatePlace(h.num, 'bucket')}
                             className="px-2 py-1 rounded text-xs font-semibold"
                             style={{ background: 'rgba(29,92,84,0.5)', color: 'var(--cream)' }}>🪣</button>
