@@ -39,7 +39,7 @@ export const TOTAL_HOLES           = 9
 export function fillDnfHoles(holeScores = []) {
   const filled = Array.from({ length: TOTAL_HOLES }, (_, i) => {
     const s = holeScores[i]
-    return (s && s > 0) ? s : DNF_STROKES_PER_HOLE
+    return (s !== null && s !== undefined) ? s : DNF_STROKES_PER_HOLE
   })
   return {
     filledHoles: filled,
