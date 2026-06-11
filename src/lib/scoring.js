@@ -95,21 +95,64 @@ export function rankRound(scores) {
 
 /**
  * Compute overall leaderboard standings across all rounds.
- * Lower cumulative adjusted score = better.
+ * - Players who missed a round get DNF_STROKES_PER_HOLE * TOTAL_HOLES added automatically.
+ * - Lower cumulative adjusted score = better.
+ *
+ * allScores: flat array of score rows (each has round_id via rounds.id join)
+ * players:   all player rows
+ * allRounds: all round rows (to detect missed weeks)
  */
-export function computeStandings(allScores, players) {
+export function computeStandings(allScores, players, allRounds = []) {
+  const dnfPenalty = DNF_STROKES_PER_HOLE * TOTAL_HOLES  // 45
+
+  // Build a set of which players appeared in each round
+  const roundParticipants = {}  // roundId → Set of player_ids
+  allScores.forEach(s => {
+    const rid = s.round_id ?? s.rounds?.id
+    if (!rid) return
+    if (!roundParticipants[rid]) roundParticipants[rid] = new Set()
+    roundParticipants[rid].add(s.player_id)
+  })
+
   const totals = {}
   players.forEach(p => {
     totals[p.id] = { player: p, totalAdjusted: 0, totalRaw: 0, roundsPlayed: 0, wins: 0, dnfRounds: 0 }
   })
 
+  // Count actual scores
   allScores.forEach(s => {
     if (!totals[s.player_id]) return
     totals[s.player_id].totalAdjusted += s.adjusted_score
     totals[s.player_id].totalRaw      += s.raw_score
     totals[s.player_id].roundsPlayed  += 1
-    if (s.placement === 1)  totals[s.player_id].wins += 1
-    if (s.dnf)              totals[s.player_id].dnfRounds += 1
+    if (s.placement === 1) totals[s.player_id].wins += 1
+    if (s.dnf)             totals[s.player_id].dnfRounds += 1
+  })
+
+  // Auto-add missed-week penalty for any player who skipped a round
+  // Only applies to rounds that occurred after the player's first appearance
+  const playerFirstRound = {}  // player_id → earliest week_number they played
+  allScores.forEach(s => {
+    const wn = s.rounds?.week_number
+    if (!wn) return
+    if (!playerFirstRound[s.player_id] || wn < playerFirstRound[s.player_id]) {
+      playerFirstRound[s.player_id] = wn
+    }
+  })
+
+  allRounds.forEach(r => {
+    const participants = roundParticipants[r.id] || new Set()
+    players.forEach(p => {
+      if (participants.has(p.id)) return  // they played, no penalty needed
+      const firstWeek = playerFirstRound[p.id]
+      if (!firstWeek || r.week_number <= firstWeek) return  // before they joined
+      // They missed this round after joining — add DNF penalty
+      if (!totals[p.id]) return
+      totals[p.id].totalAdjusted += dnfPenalty
+      totals[p.id].totalRaw      += dnfPenalty
+      totals[p.id].roundsPlayed  += 1
+      totals[p.id].dnfRounds     += 1
+    })
   })
 
   return Object.values(totals)

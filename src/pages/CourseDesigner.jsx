@@ -63,6 +63,7 @@ export default function CourseDesigner() {
   const [designedBy,  setDesignedBy]  = useState('')
   const [savedCourses,setSavedCourses]= useState([])
   const [panel,       setPanel]       = useState('design')
+  const [mapReady,    setMapReady]    = useState(false)
   const [saving,      setSaving]      = useState(false)
   const [saveMsg,     setSaveMsg]     = useState(null)
   const [loadingCourses, setLoadingCourses] = useState(false)
@@ -89,6 +90,7 @@ export default function CourseDesigner() {
       gestureHandling: 'greedy',
     })
     mapRef.current = map
+    setMapReady(true)
 
     // Click to place
     map.addListener('click', (e) => {
@@ -199,9 +201,15 @@ export default function CourseDesigner() {
     setHoles(c.holes || [])
     setCourseName(c.name)
     setDesignedBy(c.designed_by || '')
-    setPanel('design')
     setActiveHole(null); setPlaceMode(null)
-    if (mapRef.current && c.holes?.[0]?.tee) mapRef.current.panTo(c.holes[0].tee)
+    setPanel('design')
+    // Pan after React re-renders and map div is back in the DOM
+    setTimeout(() => {
+      if (mapRef.current && c.holes?.[0]?.tee) {
+        mapRef.current.panTo(c.holes[0].tee)
+        mapRef.current.setZoom(DEFAULT_ZOOM)
+      }
+    }, 100)
   }
 
   const completedHoles = holes.filter(h => h.tee && h.bucket).length
@@ -228,8 +236,7 @@ export default function CourseDesigner() {
       </div>
 
       {/* ── DESIGN PANEL ─────────────────────────────────────────────── */}
-      {panel === 'design' && (
-        <>
+      <div style={{ display: panel === 'design' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           {/* Map — takes remaining space above bottom sheet */}
           <div className="relative" style={{ flex: '1 1 0', minHeight: 0 }}>
             {mapError === 'no_key' ? (
@@ -368,8 +375,7 @@ export default function CourseDesigner() {
               </button>
             </div>
           </div>
-        </>
-      )}
+      </div>
 
       {/* ── SAVED PANEL ──────────────────────────────────────────────── */}
       {panel === 'saved' && (

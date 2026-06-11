@@ -1,5 +1,5 @@
 import { supabase } from '../supabase'
-import { rankRound } from './scoring'
+import { rankRound, fillDnfHoles, DNF_STROKES_PER_HOLE, TOTAL_HOLES } from './scoring'
 
 export async function getPlayers() {
   const { data, error } = await supabase
@@ -8,11 +8,36 @@ export async function getPlayers() {
   return data
 }
 
+/**
+ * Add a new player and retroactively insert DNF rounds for every
+ * round already played, so they don't start with 0 strokes.
+ */
 export async function addPlayer(name) {
-  const { data, error } = await supabase
+  const { data: player, error } = await supabase
     .from('players').insert({ name: name.trim() }).select().single()
   if (error) throw error
-  return data
+
+  // Fetch all existing rounds
+  const rounds = await getRounds()
+  if (rounds.length > 0) {
+    const dnfScore = DNF_STROKES_PER_HOLE * TOTAL_HOLES  // 45
+    const dnfHoles = Array(TOTAL_HOLES).fill(DNF_STROKES_PER_HOLE)
+    const retroRows = rounds.map((r, i) => ({
+      round_id:       r.id,
+      player_id:      player.id,
+      raw_score:      dnfScore,
+      handicap:       0,
+      adjusted_score: dnfScore,
+      // Place them last in each historical round (rounds.length - i = descending week order)
+      placement:      999,   // will be overridden visually; just needs to be last-ish
+      hole_scores:    dnfHoles,
+      dnf:            true,
+    }))
+    // Insert quietly — don't throw if there's a conflict, just skip
+    await supabase.from('scores').insert(retroRows)
+  }
+
+  return player
 }
 
 export async function getRounds() {
@@ -73,35 +98,4 @@ export async function submitRound({ weekNumber, date, playerScores }) {
   if (scoresError) throw scoresError
 
   return round
-}
-
-// ── Course maps ──────────────────────────────────────────────────────────────
-
-export async function saveCourseMap({ weekNumber, holes, imageDataUrl }) {
-  const { data, error } = await supabase
-    .from('course_maps')
-    .upsert({ week_number: weekNumber, holes, image_data_url: imageDataUrl },
-             { onConflict: 'week_number' })
-    .select().single()
-  if (error) throw error
-  return data
-}
-
-export async function getCourseMap(weekNumber) {
-  const { data, error } = await supabase
-    .from('course_maps')
-    .select('*')
-    .eq('week_number', weekNumber)
-    .maybeSingle()
-  if (error) throw error
-  return data
-}
-
-export async function getAllCourseMaps() {
-  const { data, error } = await supabase
-    .from('course_maps')
-    .select('*')
-    .order('week_number', { ascending: false })
-  if (error) throw error
-  return data
 }

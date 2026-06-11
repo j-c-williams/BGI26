@@ -26,6 +26,7 @@ export default function Admin() {
 
   // hole_scores[playerId][holeIndex 0-8] = strokes (number)
   const [holeScores, setHoleScores] = useState({})
+  const [dnfPlayers, setDnfPlayers] = useState({})  // player_id → true
   const [activeHole, setActiveHole] = useState(1) // which hole we're currently focusing
 
   const [submitting, setSubmitting] = useState(false)
@@ -102,6 +103,7 @@ export default function Admin() {
     }
     setError(null)
     setHoleScores({})
+    setDnfPlayers({})
     setActiveHole(1)
     setStep(STEP.SCORING)
   }
@@ -113,6 +115,10 @@ export default function Admin() {
       playerHoles[holeIdx] = Math.max(1, current + delta)
       return { ...prev, [playerId]: playerHoles }
     })
+  }
+
+  function toggleDnf(playerId) {
+    setDnfPlayers(prev => ({ ...prev, [playerId]: !prev[playerId] }))
   }
 
   function setScore(playerId, holeIdx, val) {
@@ -136,7 +142,7 @@ export default function Admin() {
       const playerScores = activePlayers.map(p => {
         const holes = holeScores[p.id] || {}
         const holeArr = HOLES.map((_, i) => holes[i] ?? null)
-        const isDnf = holeArr.some(s => s === null)
+        const isDnf = !!dnfPlayers[p.id] || holeArr.some(s => s === null)
         if (isDnf) {
           const { filledHoles, rawScore } = fillDnfHoles(holeArr.map(s => s ?? 0))
           return { player_id: p.id, raw_score: rawScore, handicap: 0, hole_scores: filledHoles, dnf: true }
@@ -378,24 +384,35 @@ export default function Admin() {
                       hcp {hcp === 0 ? 'scratch' : hcp}
                     </span>
                   </div>
-                  {/* +/- controls */}
-                  <div className="flex items-center gap-3">
+                  {/* +/- controls + DNF toggle */}
+                  <div className="flex items-center gap-2">
+                    {!dnfPlayers[p.id] && (<>
+                      <button
+                        onClick={() => adjustScore(p.id, holeIdx, -1)}
+                        className="w-10 h-10 rounded-full font-display text-2xl flex items-center justify-center"
+                        style={{ background: 'var(--rust)', color: 'var(--cream)' }}
+                      >−</button>
+                      <span
+                        className="font-display text-3xl w-8 text-center"
+                        style={{ color: score !== null ? 'var(--ink)' : 'var(--cream-dark)' }}
+                      >
+                        {score ?? '—'}
+                      </span>
+                      <button
+                        onClick={() => adjustScore(p.id, holeIdx, +1)}
+                        className="w-10 h-10 rounded-full font-display text-2xl flex items-center justify-center"
+                        style={{ background: 'var(--teal)', color: 'var(--cream)' }}
+                      >+</button>
+                    </>)}
+                    {dnfPlayers[p.id] && (
+                      <span className="font-display text-lg tracking-wide px-3 py-1 rounded"
+                        style={{ background: '#7f1d1d', color: '#fca5a5' }}>DNF</span>
+                    )}
                     <button
-                      onClick={() => adjustScore(p.id, holeIdx, -1)}
-                      className="w-10 h-10 rounded-full font-display text-2xl flex items-center justify-center transition-colors"
-                      style={{ background: 'var(--rust)', color: 'var(--cream)' }}
-                    >−</button>
-                    <span
-                      className="font-display text-3xl w-8 text-center"
-                      style={{ color: score !== null ? 'var(--ink)' : 'var(--cream-dark)' }}
-                    >
-                      {score ?? '—'}
-                    </span>
-                    <button
-                      onClick={() => adjustScore(p.id, holeIdx, +1)}
-                      className="w-10 h-10 rounded-full font-display text-2xl flex items-center justify-center transition-colors"
-                      style={{ background: 'var(--teal)', color: 'var(--cream)' }}
-                    >+</button>
+                      onClick={() => toggleDnf(p.id)}
+                      className="ml-1 px-2 py-1 rounded text-xs font-semibold"
+                      style={{ background: dnfPlayers[p.id] ? 'var(--teal)' : 'rgba(127,29,29,0.4)', color: dnfPlayers[p.id] ? 'var(--cream)' : '#fca5a5' }}
+                    >{dnfPlayers[p.id] ? 'undo' : 'DNF'}</button>
                   </div>
                 </div>
               </div>
@@ -480,7 +497,7 @@ export default function Admin() {
                               }}
                               onClick={() => setActiveHole(h)}
                             >
-                              {s ?? '·'}
+                              {dnfPlayers[p.id] ? 'DNF' : (s ?? '·')}
                             </td>
                           )
                         })}

@@ -17,7 +17,7 @@ export default function Leaderboard() {
         const [players, scores, rounds] = await Promise.all([
           getPlayers(), getAllScores(), getRounds(),
         ])
-        setStandings(computeStandings(scores, players))
+        setStandings(computeStandings(scores, players, rounds))
         setRounds(rounds)
       } catch (e) { setError(e.message) }
       finally { setLoading(false) }
