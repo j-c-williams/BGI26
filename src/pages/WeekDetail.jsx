@@ -69,6 +69,7 @@ export default function WeekDetail() {
                         </td>
                         <td className="px-3 py-2.5 font-semibold tracking-wide" style={{ color: 'var(--ink)' }}>
                           {s.players?.name}
+                          {s.dnf && <span className="ml-1.5 text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: '#7f1d1d', color: '#fca5a5' }}>DNF</span>}
                         </td>
                         <td className="px-3 py-2.5 text-right font-mono text-xs" style={{ color: s.handicap < 0 ? '#16a34a' : 'var(--ink-light)' }}>
                           {s.handicap === 0 ? 'scratch' : s.handicap}

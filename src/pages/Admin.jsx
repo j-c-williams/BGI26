@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { getPlayers, addPlayer, getRounds, getLastRoundPlacements, submitRound } from '../lib/db'
-import { getHandicapForPlacement } from '../lib/scoring'
+import { getHandicapForPlacement, fillDnfHoles } from '../lib/scoring'
 
 const HOLES = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
@@ -135,14 +135,14 @@ export default function Admin() {
     try {
       const playerScores = activePlayers.map(p => {
         const holes = holeScores[p.id] || {}
-        const raw_score = Object.values(holes).reduce((s, v) => s + (v || 0), 0)
-        const holeArr = HOLES.map((_, i) => holes[i] ?? 0)
-        return {
-          player_id: p.id,
-          raw_score,
-          handicap: getHandicap(p.id),
-          hole_scores: holeArr,
+        const holeArr = HOLES.map((_, i) => holes[i] ?? null)
+        const isDnf = holeArr.some(s => s === null)
+        if (isDnf) {
+          const { filledHoles, rawScore } = fillDnfHoles(holeArr.map(s => s ?? 0))
+          return { player_id: p.id, raw_score: rawScore, handicap: 0, hole_scores: filledHoles, dnf: true }
         }
+        const raw_score = holeArr.reduce((s, v) => s + v, 0)
+        return { player_id: p.id, raw_score, handicap: getHandicap(p.id), hole_scores: holeArr, dnf: false }
       })
 
       const round = await submitRound({

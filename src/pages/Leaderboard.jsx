@@ -49,6 +49,12 @@ export default function Leaderboard() {
           >
             INVITATIONAL
           </div>
+          <div
+            className="inline-block mt-2 px-4 py-0.5 text-sm font-semibold tracking-widest uppercase"
+            style={{ background: 'var(--rust)', color: 'var(--cream)', borderRadius: 2 }}
+          >
+            Summer Chill · 2026
+          </div>
         </div>
       </div>
 
@@ -120,6 +126,7 @@ export default function Leaderboard() {
                       <th className="font-display tracking-wider text-left px-3 py-2 text-xs">PLAYER</th>
                       <th className="font-display tracking-wider text-center px-2 py-2 text-xs">RDS</th>
                       <th className="font-display tracking-wider text-center px-2 py-2 text-xs">WINS</th>
+                      <th className="font-display tracking-wider text-center px-2 py-2 text-xs">DNF</th>
                       <th className="font-display tracking-wider text-right px-3 py-2 text-xs">ADJ</th>
                       <th className="font-display tracking-wider text-right px-3 py-2 text-xs">RAW</th>
                     </tr>
@@ -147,6 +154,9 @@ export default function Leaderboard() {
                         <td className="px-2 py-2.5 text-center font-mono text-xs" style={{ color: 'var(--ink-light)' }}>
                           {s.wins || '—'}
                         </td>
+                        <td className="px-2 py-2.5 text-center font-mono text-xs" style={{ color: s.dnfRounds > 0 ? '#dc2626' : 'var(--ink-light)' }}>
+                          {s.dnfRounds > 0 ? s.dnfRounds : '—'}
+                        </td>
                         <td className="px-3 py-2.5 text-right font-mono font-semibold" style={{ color: 'var(--teal)' }}>
                           {s.totalAdjusted}
                         </td>
@@ -157,8 +167,11 @@ export default function Leaderboard() {
                     ))}
                   </tbody>
                 </table>
-                <div className="px-3 py-2 text-xs" style={{ background: 'var(--cream-dark)', color: 'var(--ink-light)' }}>
-                  ADJ = raw strokes minus handicap · lower is better
+                <div className="px-3 py-2 text-xs space-y-0.5" style={{ background: 'var(--cream-dark)', color: 'var(--ink-light)' }}>
+                  <div>ADJ = raw strokes + handicap applied · lower is better</div>
+                  <div>Handicaps: 1st→0 · 2nd→−1 · 3rd→−2 · others→−3 · last→−4 · new player→−3</div>
+                  <div>DNF / missed holes: +5 strokes per unplayed hole, no handicap applied</div>
+                  <div>Season end: each player may drop their 2 worst rounds</div>
                 </div>
               </div>
             </div>
