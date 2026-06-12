@@ -124,7 +124,6 @@ export default function Leaderboard() {
                     <tr style={{ background: 'var(--teal)', color: 'var(--cream)' }}>
                       <th className="font-display tracking-wider text-left px-3 py-2 text-xs">#</th>
                       <th className="font-display tracking-wider text-left px-3 py-2 text-xs">PLAYER</th>
-                      <th className="font-display tracking-wider text-center px-2 py-2 text-xs">RDS</th>
                       <th className="font-display tracking-wider text-center px-2 py-2 text-xs">WINS</th>
                       <th className="font-display tracking-wider text-center px-2 py-2 text-xs">DNF</th>
                       <th className="font-display tracking-wider text-right px-3 py-2 text-xs">ADJ</th>
@@ -147,9 +146,6 @@ export default function Leaderboard() {
                         </td>
                         <td className="px-3 py-2.5 font-semibold tracking-wide" style={{ color: 'var(--ink)' }}>
                           {s.player.name}
-                        </td>
-                        <td className="px-2 py-2.5 text-center font-mono text-xs" style={{ color: 'var(--ink-light)' }}>
-                          {s.roundsPlayed}
                         </td>
                         <td className="px-2 py-2.5 text-center font-mono text-xs" style={{ color: 'var(--ink-light)' }}>
                           {s.wins || '—'}
