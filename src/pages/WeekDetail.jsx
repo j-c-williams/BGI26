@@ -3,6 +3,12 @@ import { Link, useParams } from 'react-router-dom'
 import { getRoundWithScores, getRounds } from '../lib/db'
 
 const MEDAL = { 1: '🥇', 2: '🥈', 3: '🥉' }
+function placementLabel(placement, scores) {
+  const tied = scores.filter(s => s.placement === placement).length > 1
+  const medal = MEDAL[placement]
+  if (medal) return tied ? medal + ' =' : medal
+  return tied ? `T${placement}` : placement
+}
 
 export default function WeekDetail() {
   const { id } = useParams()
@@ -56,6 +62,7 @@ export default function WeekDetail() {
                       <th className="font-display tracking-wider text-right px-3 py-2 text-xs">HCP</th>
                       <th className="font-display tracking-wider text-right px-3 py-2 text-xs">RAW</th>
                       <th className="font-display tracking-wider text-right px-3 py-2 text-xs">ADJ</th>
+                      <th className="font-display tracking-wider text-right px-3 py-2 text-xs">PTS</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -65,7 +72,7 @@ export default function WeekDetail() {
                         background: i === 0 ? 'rgba(212,168,50,0.15)' : i % 2 === 0 ? 'var(--parchment)' : 'var(--cream)',
                       }}>
                         <td className="px-3 py-2.5 font-display text-base" style={{ color: i < 3 ? 'var(--rust)' : 'var(--ink-light)' }}>
-                          {MEDAL[s.placement] || s.placement}
+                          {placementLabel(s.placement, scores)}
                         </td>
                         <td className="px-3 py-2.5 font-semibold tracking-wide" style={{ color: 'var(--ink)' }}>
                           {s.players?.name}
@@ -79,6 +86,9 @@ export default function WeekDetail() {
                         </td>
                         <td className="px-3 py-2.5 text-right font-mono font-semibold" style={{ color: 'var(--teal)' }}>
                           {s.adjusted_score}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-mono font-semibold" style={{ color: 'var(--rust)' }}>
+                          {s.points ?? 0}
                         </td>
                       </tr>
                     ))}
