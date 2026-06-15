@@ -171,7 +171,6 @@ export default function Leaderboard() {
                   <div>PTS per round: 1st→10 · 2nd→7 · 3rd→5 · 4th→3 · 5th→1 · 6th+/DNF→0 · ties share full points</div>
                   <div>Handicaps: 1st→0 · 2nd→−1 · 3rd→−2 · others→−3 · last→−4 · new→−3</div>
                   <div>DNF / missed holes: +5 strokes per unplayed hole · no handicap · 0 points</div>
-                  <div>Season end: each player may drop their 2 worst rounds</div>
                 </div>
               </div>
             </div>
