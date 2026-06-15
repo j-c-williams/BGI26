@@ -4,12 +4,6 @@ import { getRoundWithScores, getRounds } from '../lib/db'
 import { PLACEMENT_POINTS } from '../lib/scoring'
 
 const MEDAL = { 1: '🥇', 2: '🥈', 3: '🥉' }
-function placementLabel(placement, scores) {
-  const tied = scores.filter(s => s.placement === placement).length > 1
-  const medal = MEDAL[placement]
-  if (medal) return tied ? medal + ' =' : medal
-  return tied ? `T${placement}` : placement
-}
 
 export default function WeekDetail() {
   const { id } = useParams()
@@ -49,111 +43,67 @@ export default function WeekDetail() {
         {loading && <p className="text-center py-16" style={{ color: 'var(--cream-dark)' }}>Loading...</p>}
 
         {!loading && scores.length > 0 && (() => {
-            // Recalculate placements client-side using dense ranking so ties
-            // always display correctly regardless of what's stored in the DB.
-            const finishers = scores.filter(s => !s.dnf)
-              .slice().sort((a, b) => a.adjusted_score - b.adjusted_score)
-            const dnfs = scores.filter(s => s.dnf)
-            let place = 1
-            const ranked = finishers.map((s, i) => {
-              if (i > 0 && s.adjusted_score > finishers[i-1].adjusted_score) place = i + 1
-              return { ...s, displayPlacement: place }
-            })
-            dnfs.forEach((s, i) => ranked.push({ ...s, displayPlacement: ranked.length + i + 1 }))
-            const totalFinishers = finishers.length
-            return (
-          <>
-            <div className="rounded-lg overflow-hidden shadow-xl" style={{ border: '2px solid var(--rust)' }}>
-              <div className="px-4 py-2" style={{ background: 'var(--sunset)', color: 'var(--ink)' }}>
-                <span className="font-display text-xl tracking-widest">SCORECARD</span>
-              </div>
-              <div className="scorecard">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr style={{ background: 'var(--teal)', color: 'var(--cream)' }}>
-                      <th className="font-display tracking-wider text-left px-3 py-2 text-xs">#</th>
-                      <th className="font-display tracking-wider text-left px-3 py-2 text-xs">PLAYER</th>
-                      <th className="font-display tracking-wider text-right px-3 py-2 text-xs">HCP</th>
-                      <th className="font-display tracking-wider text-right px-3 py-2 text-xs">RAW</th>
-                      <th className="font-display tracking-wider text-right px-3 py-2 text-xs">ADJ</th>
-                      <th className="font-display tracking-wider text-right px-3 py-2 text-xs">PTS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ranked.map((s, i) => {
-                      const dp = s.displayPlacement
-                      const isTied = ranked.filter(r => r.displayPlacement === dp && !r.dnf).length > 1
-                      const medal = MEDAL[dp]
-                      const label = s.dnf ? dp : medal ? (isTied ? medal + '=' : medal) : (isTied ? `T${dp}` : dp)
-                      const isLast = !s.dnf && dp === ranked.filter(r=>!r.dnf).at(-1)?.displayPlacement
-                      return (
-                      <tr key={s.id} style={{
-                        borderTop: '1px solid var(--cream-dark)',
-                        background: i === 0 ? 'rgba(212,168,50,0.15)' : i % 2 === 0 ? 'var(--parchment)' : 'var(--cream)',
-                      }}>
-                        <td className="px-3 py-2.5 font-display text-base" style={{ color: dp <= 3 ? 'var(--rust)' : 'var(--ink-light)' }}>
-                          {label}
-                        </td>
-                        <td className="px-3 py-2.5 font-semibold tracking-wide" style={{ color: 'var(--ink)' }}>
-                          {s.players?.name}
-                          {s.dnf && <span className="ml-1.5 text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: '#7f1d1d', color: '#fca5a5' }}>DNF</span>}
-                        </td>
-                        <td className="px-3 py-2.5 text-right font-mono text-xs" style={{ color: s.handicap < 0 ? '#16a34a' : 'var(--ink-light)' }}>
-                          {s.handicap === 0 ? 'scratch' : s.handicap}
-                        </td>
-                        <td className="px-3 py-2.5 text-right font-mono text-xs" style={{ color: 'var(--ink-light)' }}>
-                          {s.raw_score}
-                        </td>
-                        <td className="px-3 py-2.5 text-right font-mono font-semibold" style={{ color: 'var(--rust)' }}>
-                          {s.dnf ? 0 : (PLACEMENT_POINTS[dp] ?? 0)}
-                        </td>
-                        <td className="px-3 py-2.5 text-right font-mono font-semibold" style={{ color: 'var(--rust)' }}>
-                          {s.points ?? 0}
-                        </td>
-                      </tr>
-                    )})}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          // Recalculate placements client-side using dense ranking so ties
+          // always display correctly regardless of what's stored in the DB.
+          const finishers = scores.filter(s => !s.dnf)
+            .slice().sort((a, b) => a.adjusted_score - b.adjusted_score)
+          const dnfs = scores.filter(s => s.dnf)
+          let place = 1
+          const ranked = finishers.map((s, i) => {
+            if (i > 0 && s.adjusted_score > finishers[i - 1].adjusted_score) place = i + 1
+            return { ...s, displayPlacement: place }
+          })
+          dnfs.forEach((s, i) => ranked.push({ ...s, displayPlacement: ranked.length + i + 1 }))
+          const lastAdjScore = finishers.at(-1)?.adjusted_score
 
-            {/* Hole-by-hole breakdown if available */}
-            {scores[0]?.hole_scores && (
-              <div className="mt-6 rounded-lg overflow-hidden shadow-xl" style={{ border: '2px solid var(--rust)' }}>
-                <div className="px-4 py-2" style={{ background: 'var(--teal)', color: 'var(--cream)' }}>
-                  <span className="font-display text-lg tracking-widest">HOLE BY HOLE</span>
+          return (
+            <>
+              {/* Scorecard */}
+              <div className="rounded-lg overflow-hidden shadow-xl" style={{ border: '2px solid var(--rust)' }}>
+                <div className="px-4 py-2" style={{ background: 'var(--sunset)', color: 'var(--ink)' }}>
+                  <span className="font-display text-xl tracking-widest">SCORECARD</span>
                 </div>
-                <div className="scorecard overflow-x-auto">
-                  <table className="w-full text-xs min-w-max">
+                <div className="scorecard">
+                  <table className="w-full text-sm">
                     <thead>
-                      <tr style={{ background: 'var(--cream-dark)', color: 'var(--ink)' }}>
-                        <th className="text-left px-3 py-2 font-semibold tracking-wide sticky left-0" style={{ background: 'var(--cream-dark)' }}>
-                          PLAYER
-                        </th>
-                        {[1,2,3,4,5,6,7,8,9].map(h => (
-                          <th key={h} className="px-2 py-2 text-center font-display text-sm">{h}</th>
-                        ))}
-                        <th className="px-3 py-2 text-right font-display text-sm">TOT</th>
+                      <tr style={{ background: 'var(--teal)', color: 'var(--cream)' }}>
+                        <th className="font-display tracking-wider text-left px-3 py-2 text-xs">#</th>
+                        <th className="font-display tracking-wider text-left px-3 py-2 text-xs">PLAYER</th>
+                        <th className="font-display tracking-wider text-right px-3 py-2 text-xs">HCP</th>
+                        <th className="font-display tracking-wider text-right px-3 py-2 text-xs">RAW</th>
+                        <th className="font-display tracking-wider text-right px-3 py-2 text-xs">ADJ</th>
+                        <th className="font-display tracking-wider text-right px-3 py-2 text-xs">PTS</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {scores.map((s, i) => {
-                        const holes = s.hole_scores || []
+                      {ranked.map((s, i) => {
+                        const dp = s.displayPlacement
+                        const isTied = ranked.filter(r => r.displayPlacement === dp && !r.dnf).length > 1
+                        const medal = MEDAL[dp]
+                        const label = s.dnf ? dp : medal ? (isTied ? medal + '=' : medal) : (isTied ? `T${dp}` : dp)
                         return (
                           <tr key={s.id} style={{
                             borderTop: '1px solid var(--cream-dark)',
-                            background: i % 2 === 0 ? 'var(--parchment)' : 'var(--cream)',
+                            background: i === 0 ? 'rgba(212,168,50,0.15)' : i % 2 === 0 ? 'var(--parchment)' : 'var(--cream)',
                           }}>
-                            <td className="px-3 py-2 font-semibold sticky left-0" style={{ background: i % 2 === 0 ? 'var(--parchment)' : 'var(--cream)', color: 'var(--ink)' }}>
-                              {s.players?.name}
+                            <td className="px-3 py-2.5 font-display text-base" style={{ color: dp <= 3 ? 'var(--rust)' : 'var(--ink-light)' }}>
+                              {label}
                             </td>
-                            {[1,2,3,4,5,6,7,8,9].map(h => (
-                              <td key={h} className="px-2 py-2 text-center font-mono" style={{ color: 'var(--ink)' }}>
-                                {holes[h-1] ?? '—'}
-                              </td>
-                            ))}
-                            <td className="px-3 py-2 text-right font-mono font-semibold" style={{ color: 'var(--teal)' }}>
+                            <td className="px-3 py-2.5 font-semibold tracking-wide" style={{ color: 'var(--ink)' }}>
+                              {s.players?.name}
+                              {s.dnf && <span className="ml-1.5 text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: '#7f1d1d', color: '#fca5a5' }}>DNF</span>}
+                            </td>
+                            <td className="px-3 py-2.5 text-right font-mono text-xs" style={{ color: s.handicap < 0 ? '#16a34a' : 'var(--ink-light)' }}>
+                              {s.handicap === 0 ? 'scratch' : s.handicap}
+                            </td>
+                            <td className="px-3 py-2.5 text-right font-mono text-xs" style={{ color: 'var(--ink-light)' }}>
                               {s.raw_score}
+                            </td>
+                            <td className="px-3 py-2.5 text-right font-mono font-semibold" style={{ color: 'var(--teal)' }}>
+                              {s.adjusted_score}
+                            </td>
+                            <td className="px-3 py-2.5 text-right font-mono font-semibold" style={{ color: 'var(--rust)' }}>
+                              {s.dnf ? 0 : (PLACEMENT_POINTS[dp] ?? 0)}
                             </td>
                           </tr>
                         )
@@ -162,34 +112,80 @@ export default function WeekDetail() {
                   </table>
                 </div>
               </div>
-            )}
 
-            {/* Next week handicaps */}
-            <div className="mt-4 rounded-lg px-4 py-3 text-sm" style={{ background: 'rgba(255,255,255,0.06)' }}>
-              <p className="font-display tracking-widest text-base mb-2" style={{ color: 'var(--amber)' }}>
-                HANDICAPS EARNED FOR NEXT WEEK
-              </p>
-              {scores.filter(s => !s.dnf).slice().sort((a,b) => a.adjusted_score - b.adjusted_score).concat(scores.filter(s=>s.dnf)).map((s,_,arr) => {
-                const lastPlace = arr.filter(x=>!x.dnf).at(-1)?.adjusted_score
-                const next = s.dnf ? -3
-                  : s.placement === 1 ? 0
-                  : s.placement === 2 ? -1
-                  : s.placement === 3 ? -2
-                  : s.adjusted_score === lastPlace ? -4
-                  : -3
-                return (
-                  <div key={s.id} className="flex justify-between py-0.5 text-sm">
-                    <span style={{ color: 'var(--cream)' }}>{s.players?.name}</span>
-                    <span className="font-mono" style={{ color: next < 0 ? '#4ade80' : 'var(--cream-dark)' }}>
-                      {next === 0 ? 'scratch (0)' : next}
-                    </span>
+              {/* Hole-by-hole breakdown */}
+              {scores[0]?.hole_scores && (
+                <div className="mt-6 rounded-lg overflow-hidden shadow-xl" style={{ border: '2px solid var(--rust)' }}>
+                  <div className="px-4 py-2" style={{ background: 'var(--teal)', color: 'var(--cream)' }}>
+                    <span className="font-display text-lg tracking-widest">HOLE BY HOLE</span>
                   </div>
-                )
-              })}
-            </div>
-          </>
-        )})()
-      }
+                  <div className="scorecard overflow-x-auto">
+                    <table className="w-full text-xs min-w-max">
+                      <thead>
+                        <tr style={{ background: 'var(--cream-dark)', color: 'var(--ink)' }}>
+                          <th className="text-left px-3 py-2 font-semibold tracking-wide sticky left-0" style={{ background: 'var(--cream-dark)' }}>
+                            PLAYER
+                          </th>
+                          {[1,2,3,4,5,6,7,8,9].map(h => (
+                            <th key={h} className="px-2 py-2 text-center font-display text-sm">{h}</th>
+                          ))}
+                          <th className="px-3 py-2 text-right font-display text-sm">TOT</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ranked.map((s, i) => {
+                          const holes = s.hole_scores || []
+                          return (
+                            <tr key={s.id} style={{
+                              borderTop: '1px solid var(--cream-dark)',
+                              background: i % 2 === 0 ? 'var(--parchment)' : 'var(--cream)',
+                            }}>
+                              <td className="px-3 py-2 font-semibold sticky left-0" style={{ background: i % 2 === 0 ? 'var(--parchment)' : 'var(--cream)', color: 'var(--ink)' }}>
+                                {s.players?.name}
+                              </td>
+                              {[1,2,3,4,5,6,7,8,9].map(h => (
+                                <td key={h} className="px-2 py-2 text-center font-mono" style={{ color: 'var(--ink)' }}>
+                                  {holes[h-1] ?? '—'}
+                                </td>
+                              ))}
+                              <td className="px-3 py-2 text-right font-mono font-semibold" style={{ color: 'var(--teal)' }}>
+                                {s.raw_score}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Next week handicaps */}
+              <div className="mt-4 rounded-lg px-4 py-3 text-sm" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                <p className="font-display tracking-widest text-base mb-2" style={{ color: 'var(--amber)' }}>
+                  HANDICAPS EARNED FOR NEXT WEEK
+                </p>
+                {ranked.map((s, _, arr) => {
+                  const dp = s.displayPlacement
+                  const next = s.dnf ? -3
+                    : dp === 1 ? 0
+                    : dp === 2 ? -1
+                    : dp === 3 ? -2
+                    : s.adjusted_score === lastAdjScore ? -4
+                    : -3
+                  return (
+                    <div key={s.id} className="flex justify-between py-0.5 text-sm">
+                      <span style={{ color: 'var(--cream)' }}>{s.players?.name}</span>
+                      <span className="font-mono" style={{ color: next < 0 ? '#4ade80' : 'var(--cream-dark)' }}>
+                        {next === 0 ? 'scratch (0)' : next}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )
+        })()}
       </div>
     </div>
   )
