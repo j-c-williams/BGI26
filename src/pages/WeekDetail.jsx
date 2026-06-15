@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getRoundWithScores, getRounds } from '../lib/db'
+import { PLACEMENT_POINTS } from '../lib/scoring'
 
 const MEDAL = { 1: '🥇', 2: '🥈', 3: '🥉' }
 function placementLabel(placement, scores) {
@@ -103,8 +104,8 @@ export default function WeekDetail() {
                         <td className="px-3 py-2.5 text-right font-mono text-xs" style={{ color: 'var(--ink-light)' }}>
                           {s.raw_score}
                         </td>
-                        <td className="px-3 py-2.5 text-right font-mono font-semibold" style={{ color: 'var(--teal)' }}>
-                          {s.adjusted_score}
+                        <td className="px-3 py-2.5 text-right font-mono font-semibold" style={{ color: 'var(--rust)' }}>
+                          {s.dnf ? 0 : (PLACEMENT_POINTS[dp] ?? 0)}
                         </td>
                         <td className="px-3 py-2.5 text-right font-mono font-semibold" style={{ color: 'var(--rust)' }}>
                           {s.points ?? 0}
