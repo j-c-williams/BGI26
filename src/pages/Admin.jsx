@@ -642,6 +642,7 @@ export default function Admin() {
                         style={{ color: activeHole === h ? 'var(--amber)' : 'var(--cream)', minWidth: 32 }}
                         onClick={() => setActiveHole(h)}>{h}</th>
                     ))}
+                    <th className="px-3 py-2 text-right font-display text-sm" style={{ minWidth: 40 }}>RAW</th>
                     <th className="px-3 py-2 text-right font-display text-sm" style={{ minWidth: 40 }}>ADJ</th>
                   </tr>
                 </thead>
@@ -675,6 +676,10 @@ export default function Admin() {
                             </td>
                           )
                         })}
+                        <td className="px-3 py-2 text-right font-mono text-xs"
+                          style={{ color: 'var(--ink-light)' }}>
+                          {dnfPlayers[p.id] ? '—' : raw > 0 ? raw : '—'}
+                        </td>
                         <td className="px-3 py-2 text-right font-mono font-semibold"
                           style={{ color: dnfPlayers[p.id] ? '#fca5a5' : adj !== null ? 'var(--teal)' : 'var(--cream-dark)' }}>
                           {dnfPlayers[p.id] ? 'DNF' : adj !== null ? adj : '—'}

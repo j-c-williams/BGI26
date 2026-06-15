@@ -47,7 +47,20 @@ export default function WeekDetail() {
       <div className="max-w-lg mx-auto px-4 py-6">
         {loading && <p className="text-center py-16" style={{ color: 'var(--cream-dark)' }}>Loading...</p>}
 
-        {!loading && scores.length > 0 && (
+        {!loading && scores.length > 0 && (() => {
+            // Recalculate placements client-side using dense ranking so ties
+            // always display correctly regardless of what's stored in the DB.
+            const finishers = scores.filter(s => !s.dnf)
+              .slice().sort((a, b) => a.adjusted_score - b.adjusted_score)
+            const dnfs = scores.filter(s => s.dnf)
+            let place = 1
+            const ranked = finishers.map((s, i) => {
+              if (i > 0 && s.adjusted_score > finishers[i-1].adjusted_score) place = i + 1
+              return { ...s, displayPlacement: place }
+            })
+            dnfs.forEach((s, i) => ranked.push({ ...s, displayPlacement: ranked.length + i + 1 }))
+            const totalFinishers = finishers.length
+            return (
           <>
             <div className="rounded-lg overflow-hidden shadow-xl" style={{ border: '2px solid var(--rust)' }}>
               <div className="px-4 py-2" style={{ background: 'var(--sunset)', color: 'var(--ink)' }}>
@@ -66,13 +79,19 @@ export default function WeekDetail() {
                     </tr>
                   </thead>
                   <tbody>
-                    {scores.map((s, i) => (
+                    {ranked.map((s, i) => {
+                      const dp = s.displayPlacement
+                      const isTied = ranked.filter(r => r.displayPlacement === dp && !r.dnf).length > 1
+                      const medal = MEDAL[dp]
+                      const label = s.dnf ? dp : medal ? (isTied ? medal + '=' : medal) : (isTied ? `T${dp}` : dp)
+                      const isLast = !s.dnf && dp === ranked.filter(r=>!r.dnf).at(-1)?.displayPlacement
+                      return (
                       <tr key={s.id} style={{
                         borderTop: '1px solid var(--cream-dark)',
                         background: i === 0 ? 'rgba(212,168,50,0.15)' : i % 2 === 0 ? 'var(--parchment)' : 'var(--cream)',
                       }}>
-                        <td className="px-3 py-2.5 font-display text-base" style={{ color: i < 3 ? 'var(--rust)' : 'var(--ink-light)' }}>
-                          {placementLabel(s.placement, scores)}
+                        <td className="px-3 py-2.5 font-display text-base" style={{ color: dp <= 3 ? 'var(--rust)' : 'var(--ink-light)' }}>
+                          {label}
                         </td>
                         <td className="px-3 py-2.5 font-semibold tracking-wide" style={{ color: 'var(--ink)' }}>
                           {s.players?.name}
@@ -91,7 +110,7 @@ export default function WeekDetail() {
                           {s.points ?? 0}
                         </td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>
@@ -149,11 +168,13 @@ export default function WeekDetail() {
               <p className="font-display tracking-widest text-base mb-2" style={{ color: 'var(--amber)' }}>
                 HANDICAPS EARNED FOR NEXT WEEK
               </p>
-              {scores.map(s => {
-                const next = s.placement === 1 ? 0
+              {scores.filter(s => !s.dnf).slice().sort((a,b) => a.adjusted_score - b.adjusted_score).concat(scores.filter(s=>s.dnf)).map((s,_,arr) => {
+                const lastPlace = arr.filter(x=>!x.dnf).at(-1)?.adjusted_score
+                const next = s.dnf ? -3
+                  : s.placement === 1 ? 0
                   : s.placement === 2 ? -1
                   : s.placement === 3 ? -2
-                  : s.placement === scores.length ? -4
+                  : s.adjusted_score === lastPlace ? -4
                   : -3
                 return (
                   <div key={s.id} className="flex justify-between py-0.5 text-sm">
@@ -166,7 +187,8 @@ export default function WeekDetail() {
               })}
             </div>
           </>
-        )}
+        )})()
+      }
       </div>
     </div>
   )
