@@ -18,6 +18,11 @@ export default function Admin() {
   const [lastPlacements, setLastPlacements] = useState({})
   const [lastTotalPlayers, setLastTotalPlayers] = useState(0)
 
+  const [latePlayerOpen, setLatePlayerOpen] = useState(false)
+  const [latePlayerName, setLatePlayerName] = useState('')
+  const [latePlayerSelect, setLatePlayerSelect] = useState('')
+  const [addingLate, setAddingLate] = useState(false)
+
   const [step, setStep] = useState(STEP.SETUP)
   const [weekNumber, setWeekNumber] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
@@ -140,6 +145,9 @@ export default function Admin() {
     setHoleScores({})
     setDnfPlayers({})
     setActiveHole(1)
+    setLatePlayerOpen(false)
+    setLatePlayerName('')
+    setLatePlayerSelect('')
     setStep(STEP.SCORING)
   }
 
@@ -164,6 +172,42 @@ export default function Admin() {
       }
       return { ...prev, [playerId]: nowDnf }
     })
+  }
+
+  async function handleAddLatePlayer() {
+    setAddingLate(true)
+    try {
+      let player
+      if (latePlayerSelect) {
+        // Existing player not yet in round
+        player = players.find(p => p.id === latePlayerSelect)
+      } else if (latePlayerName.trim()) {
+        // Brand new player
+        player = await addPlayer(latePlayerName.trim())
+        setPlayers(prev => [...prev, player].sort((a, b) => a.name.localeCompare(b.name)))
+        setLatePlayerName('')
+      } else return
+
+      // Mark them as participating
+      setParticipating(prev => ({ ...prev, [player.id]: true }))
+
+      // Pre-fill all already-completed holes with DNF (5 strokes each)
+      setHoleScores(prev => {
+        const playerHoles = {}
+        // Mark every hole before the current one as 5
+        for (let i = 0; i < activeHole - 1; i++) {
+          playerHoles[i] = 5
+        }
+        return { ...prev, [player.id]: playerHoles }
+      })
+
+      setLatePlayerSelect('')
+      setLatePlayerOpen(false)
+    } catch (e) {
+      setError('Failed to add player: ' + e.message)
+    } finally {
+      setAddingLate(false)
+    }
   }
 
   function setScore(playerId, holeIdx, val) {
@@ -490,6 +534,88 @@ export default function Admin() {
             </button>
           )}
         </div>
+      </div>
+
+      {/* ── Add Late Player ─────────────────────────────── */}
+      <div className="mt-4">
+        <button
+          onClick={() => setLatePlayerOpen(o => !o)}
+          className="w-full py-2 rounded-lg text-sm font-semibold tracking-wide"
+          style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--cream-dark)' }}
+        >
+          {latePlayerOpen ? '✕ Cancel' : '+ Add Late Player'}
+        </button>
+
+        {latePlayerOpen && (
+          <div className="mt-2 rounded-xl p-4 space-y-3"
+            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+
+            {/* Existing players not yet in the round */}
+            {players.filter(p => !participating[p.id]).length > 0 && (
+              <div>
+                <label className="block text-xs tracking-widest mb-1.5 font-semibold"
+                  style={{ color: 'var(--cream-dark)' }}>EXISTING PLAYER</label>
+                <div className="flex gap-2">
+                  <select
+                    value={latePlayerSelect}
+                    onChange={e => { setLatePlayerSelect(e.target.value); setLatePlayerName('') }}
+                    className="flex-1 rounded px-3 py-2 text-sm outline-none"
+                    style={{ background: 'rgba(255,255,255,0.08)', color: 'var(--cream)', border: '1px solid rgba(255,255,255,0.15)' }}
+                  >
+                    <option value="">Select player...</option>
+                    {players.filter(p => !participating[p.id]).map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={handleAddLatePlayer}
+                    disabled={!latePlayerSelect || addingLate}
+                    className="px-4 py-2 rounded text-sm font-semibold disabled:opacity-40"
+                    style={{ background: 'var(--teal)', color: 'var(--cream)' }}
+                  >{addingLate ? '...' : 'Add'}</button>
+                </div>
+              </div>
+            )}
+
+            {/* Divider */}
+            {players.filter(p => !participating[p.id]).length > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.1)' }} />
+                <span className="text-xs" style={{ color: 'var(--cream-dark)' }}>or</span>
+                <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.1)' }} />
+              </div>
+            )}
+
+            {/* New player */}
+            <div>
+              <label className="block text-xs tracking-widest mb-1.5 font-semibold"
+                style={{ color: 'var(--cream-dark)' }}>NEW PLAYER</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Player name"
+                  value={latePlayerName}
+                  onChange={e => { setLatePlayerName(e.target.value); setLatePlayerSelect('') }}
+                  onKeyDown={e => e.key === 'Enter' && handleAddLatePlayer()}
+                  className="flex-1 rounded px-3 py-2 text-sm outline-none"
+                  style={{ background: 'rgba(255,255,255,0.08)', color: 'var(--cream)', border: '1px solid rgba(255,255,255,0.15)' }}
+                />
+                <button
+                  onClick={handleAddLatePlayer}
+                  disabled={!latePlayerName.trim() || addingLate}
+                  className="px-4 py-2 rounded text-sm font-semibold disabled:opacity-40"
+                  style={{ background: 'var(--teal)', color: 'var(--cream)' }}
+                >{addingLate ? '...' : 'Add'}</button>
+              </div>
+            </div>
+
+            {activeHole > 1 && (
+              <p className="text-xs" style={{ color: 'var(--amber)' }}>
+                ⚠ Holes 1–{activeHole - 1} will be auto-scored as 5 (DNF penalty)
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Live Scorecard ─────────────────────────────────────── */}
