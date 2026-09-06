@@ -214,7 +214,7 @@ export default function WeekDetail() {
                       <th className="font-display tracking-wider text-right px-3 py-2 text-xs">HCP</th>
                       <th className="font-display tracking-wider text-right px-3 py-2 text-xs">RAW</th>
                       <th className="font-display tracking-wider text-right px-3 py-2 text-xs">ADJ</th>
-                      <th className="font-display tracking-wider text-right px3 py-2 text-xs">PTS</th>
+                      <th className="font-display tracking-wider text-right px-3 py-2 text-xs">PTS</th>
                     </tr>
                   </thead>
                   <tbody>
