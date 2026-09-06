@@ -7,17 +7,16 @@ import { getHandicapForPlacement, fillDnfHoles } from '../lib/scoring'
 const HOLES = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 const LOCAL_KEY = 'bgi_inprogress'
 
-const STEP = { SETUP: 'setup', SCORING: 'scoring', RESUME: 'resume' }
+const STEP = { SETUP: 'setup', SCORING: 'scoring', RESUME: 'resume', TIEBREAKER: 'tiebreaker' }
 
-// Save to both localStorage (instant) and Supabase (cross-device)
 async function persistState(state) {
   try { localStorage.setItem(LOCAL_KEY, JSON.stringify(state)) } catch {}
-  await saveInProgressRound(state)
+  try { await saveInProgressRound(state) } catch {}
 }
 
 async function clearPersistedState() {
   try { localStorage.removeItem(LOCAL_KEY) } catch {}
-  await clearInProgressRound()
+  try { await clearInProgressRound() } catch {}
 }
 
 export default function Admin() {
@@ -40,14 +39,16 @@ export default function Admin() {
   const [dnfPlayers, setDnfPlayers] = useState({})
   const [activeHole, setActiveHole] = useState(1)
 
-  // Late player state
   const [latePlayerOpen, setLatePlayerOpen] = useState(false)
   const [latePlayerName, setLatePlayerName] = useState('')
   const [latePlayerSelect, setLatePlayerSelect] = useState('')
   const [addingLate, setAddingLate] = useState(false)
 
-  // Resume prompt state
   const [savedState, setSavedState] = useState(null)
+
+  // Tiebreaker state: { playerId → distance string }
+  const [tiedPlayers, setTiedPlayers] = useState([])
+  const [tiebreakerDistances, setTiebreakerDistances] = useState({})
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
@@ -65,7 +66,6 @@ export default function Admin() {
         setLastTotalPlayers(lastData.totalPlayers)
       }
 
-      // Check for saved in-progress round (Supabase first, fall back to localStorage)
       let saved = null
       try { saved = await loadInProgressRound() } catch {}
       if (!saved) {
@@ -91,14 +91,13 @@ export default function Admin() {
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
       persistState({ step, weekNumber, date, participating, holeScores, dnfPlayers, activeHole })
-    }, 1000) // save 1s after last change to avoid hammering Supabase
+    }, 1000)
     return () => clearTimeout(saveTimer.current)
   }, [step, weekNumber, date, participating, holeScores, dnfPlayers, activeHole])
 
   // ─── Derived ──────────────────────────────────────────────────
   const activePlayers = players.filter(p => participating[p.id])
 
-  // Sort active players by current adjusted score ascending (leader first)
   const sortedActivePlayers = [...activePlayers].sort((a, b) => {
     const aAdj = playerCurrentAdjusted(a.id)
     const bAdj = playerCurrentAdjusted(b.id)
@@ -141,6 +140,16 @@ export default function Admin() {
     ).length
   }
 
+  // Detect if any non-DNF players are tied for 1st after 9 holes
+  function getTiedForFirst() {
+    const finishers = activePlayers.filter(p => !dnfPlayers[p.id])
+    if (!finishers.length) return []
+    const adjs = finishers.map(p => ({ p, adj: playerCurrentAdjusted(p.id) }))
+    const best = Math.min(...adjs.map(x => x.adj).filter(v => v !== null))
+    const tied = adjs.filter(x => x.adj === best)
+    return tied.length > 1 ? tied.map(x => x.p) : []
+  }
+
   // ─── Handlers ─────────────────────────────────────────────────
   function restoreSavedRound() {
     const s = savedState
@@ -176,6 +185,12 @@ export default function Admin() {
 
   function toggleParticipating(playerId) {
     setParticipating(prev => ({ ...prev, [playerId]: !prev[playerId] }))
+  }
+
+  function removeFromRound(playerId) {
+    setParticipating(prev => ({ ...prev, [playerId]: false }))
+    setHoleScores(prev => { const next = { ...prev }; delete next[playerId]; return next })
+    setDnfPlayers(prev => { const next = { ...prev }; delete next[playerId]; return next })
   }
 
   function startScoring() {
@@ -222,16 +237,11 @@ export default function Admin() {
       } else return
 
       setParticipating(prev => ({ ...prev, [player.id]: true }))
-
-      // Pre-fill holes before current hole with DNF penalty (5)
       setHoleScores(prev => {
         const playerHoles = {}
-        for (let i = 0; i < activeHole - 1; i++) {
-          playerHoles[i] = 5
-        }
+        for (let i = 0; i < activeHole - 1; i++) playerHoles[i] = 5
         return { ...prev, [player.id]: playerHoles }
       })
-
       setLatePlayerSelect('')
       setLatePlayerOpen(false)
     } catch (e) {
@@ -241,7 +251,19 @@ export default function Admin() {
     }
   }
 
-  async function handleSubmit() {
+  // Called when Finish Round is clicked — check for ties first
+  function handleFinishClick() {
+    const tied = getTiedForFirst()
+    if (tied.length > 1) {
+      setTiedPlayers(tied)
+      setTiebreakerDistances({})
+      setStep(STEP.TIEBREAKER)
+    } else {
+      doSubmit({})
+    }
+  }
+
+  async function doSubmit(tiebreakers) {
     setError(null)
     setSubmitting(true)
     try {
@@ -257,12 +279,13 @@ export default function Admin() {
         return { player_id: p.id, raw_score, handicap: getHandicap(p.id), hole_scores: holeArr, dnf: false }
       })
 
-      const round = await submitRound({ weekNumber: parseInt(weekNumber, 10), date, playerScores })
+      const round = await submitRound({ weekNumber: parseInt(weekNumber, 10), date, playerScores, tiebreakers })
       await clearPersistedState()
       setSuccess(true)
       setTimeout(() => navigate(`/week/${round.id}`), 1200)
     } catch (e) {
       setError('Submit failed: ' + e.message)
+      setStep(STEP.SCORING)
     } finally {
       setSubmitting(false)
     }
@@ -294,9 +317,7 @@ export default function Admin() {
         <div className="w-full max-w-sm">
           <div className="text-center mb-6">
             <div className="text-5xl mb-3">⏸️</div>
-            <h1 className="font-display text-4xl tracking-widest" style={{ color: 'var(--amber)' }}>
-              ROUND IN PROGRESS
-            </h1>
+            <h1 className="font-display text-4xl tracking-widest" style={{ color: 'var(--amber)' }}>ROUND IN PROGRESS</h1>
             <p className="text-sm mt-2" style={{ color: 'var(--cream-dark)' }}>
               Week {s?.weekNumber} · {holesIn}/9 holes completed
             </p>
@@ -306,31 +327,123 @@ export default function Admin() {
               </p>
             )}
           </div>
-
-          <button
-            onClick={restoreSavedRound}
+          <button onClick={restoreSavedRound}
             className="w-full py-4 rounded-xl font-display text-2xl tracking-widest mb-3"
-            style={{ background: 'var(--teal)', color: 'var(--cream)' }}
-          >
+            style={{ background: 'var(--teal)', color: 'var(--cream)' }}>
             ▶ RESUME ROUND
           </button>
-
-          <button
-            onClick={() => {
-              if (window.confirm(
-                '⚠️ DISCARD IN-PROGRESS ROUND?\n\n' +
-                'This will permanently delete all scores entered so far for Week ' + s?.weekNumber + '.\n\n' +
-                'This cannot be undone. Are you absolutely sure?'
-              )) discardSavedRound()
-            }}
+          <button onClick={() => {
+            if (window.confirm(
+              '⚠️ DISCARD IN-PROGRESS ROUND?\n\nThis will permanently delete all scores entered so far for Week ' + s?.weekNumber + '.\n\nThis cannot be undone. Are you absolutely sure?'
+            )) discardSavedRound()
+          }}
             className="w-full py-3 rounded-xl font-display text-lg tracking-widest"
-            style={{ background: 'rgba(127,29,29,0.4)', color: '#fca5a5', border: '1px solid #7f1d1d' }}
-          >
+            style={{ background: 'rgba(127,29,29,0.4)', color: '#fca5a5', border: '1px solid #7f1d1d' }}>
             ✕ DISCARD & START FRESH
           </button>
           <p className="text-center text-xs mt-2" style={{ color: '#f87171' }}>
             Discard permanently deletes all scores entered so far
           </p>
+        </div>
+      </div>
+    )
+  }
+
+  // ─── Tiebreaker Step ──────────────────────────────────────────
+  if (step === STEP.TIEBREAKER) {
+    const allDistancesEntered = tiedPlayers.every(p =>
+      tiebreakerDistances[p.id] !== undefined && tiebreakerDistances[p.id] !== ''
+    )
+    const distances = tiedPlayers.map(p => parseFloat(tiebreakerDistances[p.id] || ''))
+    const uniqueDistances = new Set(distances.filter(d => !isNaN(d)))
+    const isTrueTie = allDistancesEntered && uniqueDistances.size === 1
+
+    return (
+      <div className="min-h-screen" style={{ background: 'var(--teal-dark)' }}>
+        <div className="h-1 w-full" style={{
+          background: 'repeating-linear-gradient(90deg, var(--rust) 0px 8px, var(--amber) 8px 16px)',
+        }} />
+        <div className="px-4 pt-6 pb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+          <button onClick={() => setStep(STEP.SCORING)} className="text-xs tracking-widest" style={{ color: 'var(--cream-dark)' }}>
+            ← BACK
+          </button>
+          <h1 className="font-display text-4xl tracking-widest mt-1" style={{ color: 'var(--amber)' }}>TIEBREAKER</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--cream-dark)' }}>
+            Closest to the pin — one shot each. Enter distance from hole (lower wins). Strokes don't count toward totals.
+          </p>
+        </div>
+
+        <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
+          {/* Tied players and their current score */}
+          <div className="rounded-lg overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
+            <div className="px-4 py-2 font-display tracking-widest text-sm" style={{ background: 'var(--teal)', color: 'var(--cream)' }}>
+              TIED FOR 1ST PLACE
+            </div>
+            {tiedPlayers.map(p => (
+              <div key={p.id} className="px-4 py-3 flex items-center justify-between"
+                style={{ borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)' }}>
+                <span className="font-semibold" style={{ color: 'var(--cream)' }}>{p.name}</span>
+                <span className="font-mono text-sm" style={{ color: 'var(--teal-light)' }}>
+                  adj: {playerCurrentAdjusted(p.id)}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Distance inputs */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold tracking-widest" style={{ color: 'var(--cream-dark)' }}>
+              DISTANCE FROM HOLE (feet, inches, or any unit — just be consistent)
+            </p>
+            {tiedPlayers.map(p => (
+              <div key={p.id} className="flex items-center gap-3">
+                <span className="font-semibold w-28 text-sm" style={{ color: 'var(--cream)' }}>{p.name}</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  placeholder="e.g. 4.5"
+                  value={tiebreakerDistances[p.id] ?? ''}
+                  onChange={e => setTiebreakerDistances(prev => ({ ...prev, [p.id]: e.target.value }))}
+                  className="flex-1 rounded px-3 py-2.5 text-lg font-mono outline-none"
+                  style={{ background: 'rgba(255,255,255,0.08)', color: 'var(--cream)', border: '1px solid rgba(255,255,255,0.15)' }}
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* True tie warning */}
+          {isTrueTie && (
+            <div className="rounded-lg p-3 text-sm text-center" style={{ background: 'rgba(212,168,50,0.15)', color: 'var(--amber)', border: '1px solid var(--amber)' }}>
+              ⚠ Both distances are equal — this is a true tie. Both players will share 1st place.
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded p-3 text-sm" style={{ background: '#7f1d1d', color: '#fca5a5' }}>{error}</div>
+          )}
+
+          <button
+            onClick={() => {
+              const tb = {}
+              tiedPlayers.forEach(p => {
+                tb[p.id] = parseFloat(tiebreakerDistances[p.id] || '0')
+              })
+              doSubmit(tb)
+            }}
+            disabled={!allDistancesEntered || submitting}
+            className="w-full py-4 rounded-xl font-display text-2xl tracking-widest disabled:opacity-30"
+            style={{ background: 'var(--rust)', color: 'var(--cream)' }}>
+            {submitting ? 'SAVING...' : '🏁 SUBMIT RESULTS'}
+          </button>
+
+          <button
+            onClick={() => doSubmit({})}
+            disabled={submitting}
+            className="w-full py-2 rounded-lg font-display text-base tracking-widest"
+            style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--cream-dark)' }}>
+            Skip tiebreaker — keep as tie
+          </button>
         </div>
       </div>
     )
@@ -442,9 +555,7 @@ export default function Admin() {
         style={{ background: 'var(--teal-dark)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
         <div>
           <button onClick={() => { clearPersistedState(); setStep(STEP.SETUP) }}
-            className="text-xs tracking-widest" style={{ color: 'var(--cream-dark)' }}>
-            ← SETUP
-          </button>
+            className="text-xs tracking-widest" style={{ color: 'var(--cream-dark)' }}>← SETUP</button>
           <div className="font-display text-2xl tracking-widest mt-0.5" style={{ color: 'var(--amber)' }}>
             WEEK {weekNumber} · SCORING
           </div>
@@ -527,6 +638,14 @@ export default function Admin() {
                       style={{ background: dnfPlayers[p.id] ? 'var(--teal)' : 'rgba(127,29,29,0.4)', color: dnfPlayers[p.id] ? 'var(--cream)' : '#fca5a5' }}>
                       {dnfPlayers[p.id] ? 'undo' : 'DNF'}
                     </button>
+                    {/* Remove from round */}
+                    <button onClick={() => {
+                      if (window.confirm(`Remove ${p.name} from this round?`)) removeFromRound(p.id)
+                    }}
+                      className="ml-1 px-2 py-1 rounded text-xs font-semibold"
+                      style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--cream-dark)' }}>
+                      ✕
+                    </button>
                   </div>
                 </div>
               </div>
@@ -563,12 +682,9 @@ export default function Admin() {
           {latePlayerOpen && (
             <div className="mt-2 rounded-xl p-4 space-y-3"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
-
               {players.filter(p => !participating[p.id]).length > 0 && (
                 <div>
-                  <label className="block text-xs tracking-widest mb-1.5 font-semibold" style={{ color: 'var(--cream-dark)' }}>
-                    EXISTING PLAYER
-                  </label>
+                  <label className="block text-xs tracking-widest mb-1.5 font-semibold" style={{ color: 'var(--cream-dark)' }}>EXISTING PLAYER</label>
                   <div className="flex gap-2">
                     <select value={latePlayerSelect}
                       onChange={e => { setLatePlayerSelect(e.target.value); setLatePlayerName('') }}
@@ -587,7 +703,6 @@ export default function Admin() {
                   </div>
                 </div>
               )}
-
               {players.filter(p => !participating[p.id]).length > 0 && (
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.1)' }} />
@@ -595,11 +710,8 @@ export default function Admin() {
                   <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.1)' }} />
                 </div>
               )}
-
               <div>
-                <label className="block text-xs tracking-widest mb-1.5 font-semibold" style={{ color: 'var(--cream-dark)' }}>
-                  NEW PLAYER
-                </label>
+                <label className="block text-xs tracking-widest mb-1.5 font-semibold" style={{ color: 'var(--cream-dark)' }}>NEW PLAYER</label>
                 <div className="flex gap-2">
                   <input type="text" placeholder="Player name" value={latePlayerName}
                     onChange={e => { setLatePlayerName(e.target.value); setLatePlayerSelect('') }}
@@ -613,7 +725,6 @@ export default function Admin() {
                   </button>
                 </div>
               </div>
-
               {activeHole > 1 && (
                 <p className="text-xs" style={{ color: 'var(--amber)' }}>
                   ⚠ Holes 1–{activeHole - 1} will be auto-scored as 5 (DNF penalty)
@@ -624,11 +735,9 @@ export default function Admin() {
         </div>
       </div>
 
-      {/* Live Scorecard — sorted by current adjusted score */}
+      {/* Live Scorecard */}
       <div ref={scorecardRef} className="px-4 mt-2">
-        <div className="font-display text-lg tracking-widest mb-2" style={{ color: 'var(--cream-dark)' }}>
-          SCORECARD
-        </div>
+        <div className="font-display text-lg tracking-widest mb-2" style={{ color: 'var(--cream-dark)' }}>SCORECARD</div>
         <div className="rounded-lg overflow-hidden shadow-lg" style={{ border: '2px solid var(--rust)' }}>
           <div className="overflow-x-auto">
             <div className="scorecard">
@@ -676,8 +785,7 @@ export default function Admin() {
                             </td>
                           )
                         })}
-                        <td className="px-3 py-2 text-right font-mono text-xs"
-                          style={{ color: 'var(--ink-light)' }}>
+                        <td className="px-3 py-2 text-right font-mono text-xs" style={{ color: 'var(--ink-light)' }}>
                           {dnfPlayers[p.id] ? '—' : raw > 0 ? raw : '—'}
                         </td>
                         <td className="px-3 py-2 text-right font-mono font-semibold"
@@ -700,15 +808,20 @@ export default function Admin() {
         {error && (
           <div className="rounded p-2 text-xs mb-2 text-center" style={{ background: '#7f1d1d', color: '#fca5a5' }}>{error}</div>
         )}
+        {allNineComplete() && getTiedForFirst().length > 1 && (
+          <p className="text-center text-xs mb-2" style={{ color: 'var(--amber)' }}>
+            🏆 {getTiedForFirst().map(p => p.name).join(' & ')} are tied for 1st — tiebreaker required!
+          </p>
+        )}
         {!allNineComplete() && (
           <p className="text-center text-xs mb-2" style={{ color: 'var(--cream-dark)' }}>
             {9 - completedHoles} hole{9 - completedHoles !== 1 ? 's' : ''} remaining before you can finish
           </p>
         )}
-        <button onClick={handleSubmit} disabled={!allNineComplete() || submitting}
+        <button onClick={handleFinishClick} disabled={!allNineComplete() || submitting}
           className="w-full py-4 rounded-xl font-display text-2xl tracking-widest disabled:opacity-30 transition-opacity"
           style={{ background: allNineComplete() ? 'var(--rust)' : 'rgba(255,255,255,0.1)', color: 'var(--cream)' }}>
-          {submitting ? 'SAVING...' : '🏁 FINISH ROUND'}
+          {submitting ? 'SAVING...' : allNineComplete() && getTiedForFirst().length > 1 ? '🏆 TIEBREAKER →' : '🏁 FINISH ROUND'}
         </button>
       </div>
     </div>

@@ -50,12 +50,12 @@ export async function getLastRoundPlacements() {
   return { placements, totalPlayers: scores.length, lastRound }
 }
 
-export async function submitRound({ weekNumber, date, playerScores }) {
+export async function submitRound({ weekNumber, date, playerScores, tiebreakers = {} }) {
   const { data: round, error: roundError } = await supabase
     .from('rounds').insert({ week_number: weekNumber, date }).select().single()
   if (roundError) throw roundError
 
-  const ranked = rankRound(playerScores)
+  const ranked = rankRound(playerScores, tiebreakers)
 
   const scoreRows = ranked.map(s => ({
     round_id:       round.id,
@@ -64,30 +64,51 @@ export async function submitRound({ weekNumber, date, playerScores }) {
     handicap:       s.handicap,
     adjusted_score: s.adjusted_score,
     placement:      s.placement,
-    points:         s.points ?? pointsForPlacement(s.placement, s.dnf),
     hole_scores:    s.hole_scores || null,
     dnf:            s.dnf || false,
+    points:         s.points || 0,
   }))
 
   const { error: scoresError } = await supabase.from('scores').insert(scoreRows)
   if (scoresError) throw scoresError
 
-  // Clean up any in-progress save for this week
-  await clearInProgressRound()
-
   return round
 }
 
-// ── In-progress round (live hole saving) ──────────────────────────
+/**
+ * Edit an existing round's scores.
+ * Re-ranks everything and updates all rows in the DB.
+ */
+export async function editRound(roundId, playerScores, tiebreakers = {}) {
+  const ranked = rankRound(playerScores, tiebreakers)
 
-const IN_PROGRESS_KEY = 'current'
+  for (const s of ranked) {
+    const { error } = await supabase
+      .from('scores')
+      .update({
+        raw_score:      s.raw_score,
+        handicap:       s.handicap,
+        adjusted_score: s.adjusted_score,
+        placement:      s.placement,
+        hole_scores:    s.hole_scores || null,
+        dnf:            s.dnf || false,
+        points:         s.points || 0,
+      })
+      .eq('round_id', roundId)
+      .eq('player_id', s.player_id)
+    if (error) throw error
+  }
+}
+
+// ── In-progress round (cross-device saving) ────────────────────
+
+const IN_PROGRESS_KEY = 'bgi_current_round'
 
 export async function saveInProgressRound(state) {
-  // state: { weekNumber, date, participating, holeScores, dnfPlayers, activeHole, playerIds }
   const { error } = await supabase
     .from('rounds_in_progress')
-    .upsert({ id: IN_PROGRESS_KEY, state }, { onConflict: 'id' })
-  if (error) console.warn('Could not save in-progress round:', error.message)
+    .upsert({ id: IN_PROGRESS_KEY, state, updated_at: new Date().toISOString() })
+  if (error) throw error
 }
 
 export async function loadInProgressRound() {
